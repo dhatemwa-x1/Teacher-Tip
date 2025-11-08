@@ -1,0 +1,734 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Editable Quiz-Tac-Toe</title>
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Load Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #f0f4f8;
+            --grid-color: #a0b4c8;
+            --x-color: #007bff;
+            --o-color: #dc3545;
+            --accent-color: #212529;
+            --shadow-color: rgba(0, 0, 0, 0.1);
+            --card-bg: #ffffff;
+            --input-border: #cbd5e1;
+            --correct-color: #28a745;
+            --incorrect-color: #dc3545;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--accent-color);
+        }
+        
+        .font-orbitron { font-family: 'Orbitron', sans-serif; }
+        .title-text { color: var(--accent-color); text-shadow: 1px 1px 2px var(--shadow-color); }
+        
+        .game-board {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            grid-template-rows: repeat(3, 1fr);
+            width: clamp(300px, 90vw, 450px);
+            height: clamp(300px, 90vw, 450px);
+            position: relative;
+            background-color: var(--card-bg);
+            border-radius: 1rem;
+            box-shadow: 0 10px 15px -3px var(--shadow-color);
+            padding: 1rem;
+            border: 1px solid #e2e8f0;
+            gap: 1rem;
+        }
+
+        .cell {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            border-radius: 0.5rem;
+            transition: background-color 0.3s ease;
+            position: relative;
+            background-color: #f8fafc;
+            border: 2px dashed var(--grid-color);
+        }
+        
+        .cell:not(.occupied):hover { background-color: rgba(0, 123, 255, 0.05); }
+        .cell.occupied { border-style: solid; border-color: #e2e8f0; }
+
+        .cell svg {
+            width: 70%; height: 70%;
+            opacity: 0; transform: scale(0.5);
+            animation: place-marker 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+            overflow: visible;
+        }
+
+        .btn {
+            border: none; color: white; padding: 0.75rem 1.5rem; border-radius: 0.5rem;
+            font-weight: 600; cursor: pointer; transition: all 0.2s ease;
+            box-shadow: 0 4px 6px -1px var(--shadow-color);
+        }
+        .btn:hover:not(:disabled) { filter: brightness(1.1); transform: translateY(-2px); }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        
+        .btn-sm {
+            padding: 0.5rem 1rem;
+            font-size: 0.875rem;
+        }
+        
+        .btn-primary { background-color: var(--x-color); }
+        .btn-secondary { background-color: var(--grid-color); color: var(--accent-color); }
+        .btn-danger { background-color: var(--o-color); }
+
+        .score-box {
+            background: var(--card-bg); border: 1px solid #e2e8f0;
+            border-radius: 0.75rem; padding: 1rem;
+            box-shadow: 0 4px 6px -1px var(--shadow-color);
+        }
+        
+        .player-x-active, .player-x-win { color: var(--x-color); font-weight: 700; border: 2px solid var(--x-color); }
+        .player-o-active, .player-o-win { color: var(--o-color); font-weight: 700; border: 2px solid var(--o-color); }
+
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background-color: rgba(0, 0, 0, 0.6); backdrop-filter: blur(5px);
+            display: flex; justify-content: center; align-items: center;
+            opacity: 0; visibility: hidden; transition: all 0.3s ease-in-out; z-index: 100;
+        }
+        .modal-overlay.active { opacity: 1; visibility: visible; }
+        .modal-content {
+            background: var(--card-bg); padding: 2rem; border-radius: 1rem; width: 90%; max-width: 600px;
+            box-shadow: 0 20px 25px -5px var(--shadow-color);
+            transform: scale(0.9); transition: transform 0.3s ease-in-out;
+        }
+        .modal-overlay.active .modal-content { transform: scale(1); }
+        
+        /* Answer Option Buttons */
+        .answer-option {
+            display: block; width: 100%; text-align: left;
+            padding: 0.75rem 1rem; margin-bottom: 0.5rem;
+            border: 2px solid var(--input-border); border-radius: 0.5rem;
+            cursor: pointer; transition: all 0.2s ease;
+            color: var(--accent-color); background-color: #f8fafc;
+        }
+        .answer-option:hover:not(:disabled) { background-color: #e9ecef; border-color: #6c757d; }
+        .answer-option:disabled { cursor: not-allowed; }
+
+        .answer-option.correct {
+            background-color: rgba(40, 167, 69, 0.1);
+            border-color: var(--correct-color);
+            color: var(--correct-color);
+            font-weight: bold;
+        }
+        .answer-option.incorrect {
+            background-color: rgba(220, 53, 69, 0.1);
+            border-color: var(--incorrect-color);
+            color: var(--incorrect-color);
+            font-weight: bold;
+        }
+        
+        #modal-feedback {
+            text-align: center;
+            font-size: 1.25rem;
+            font-weight: bold;
+            height: 2rem; /* Reserve space */
+            margin-top: 1rem;
+        }
+        .feedback-correct { color: var(--correct-color); }
+        .feedback-incorrect { color: var(--incorrect-color); }
+        
+        #modal-open-answer-container { display: none; }
+        #modal-answer-input {
+            width: 100%; border-radius: 0.375rem; border: 1px solid var(--input-border);
+            padding: 0.75rem 1rem; font-size: 1rem;
+        }
+        #modal-answer-input:focus {
+            border-color: var(--x-color);
+            box-shadow: 0 0 0 2px rgba(0,123,255,0.2);
+            outline: none;
+        }
+
+        /* Setup Form Styles */
+        .setup-card {
+            background-color: var(--card-bg); border-radius: 0.75rem;
+            padding: 1.5rem; box-shadow: 0 4px 12px var(--shadow-color);
+            border: 1px solid #e2e8f0;
+        }
+        .setup-card h3, .setup-card h2 {
+            font-weight: 600; margin-bottom: 0.75rem;
+            border-bottom: 1px solid var(--input-border); padding-bottom: 0.75rem;
+        }
+        .setup-card h3 { font-size: 1.125rem; }
+        .setup-card h2 { font-size: 1.5rem; }
+        
+        .setup-card label {
+            display: block; font-weight: 500;
+            margin-bottom: 0.25rem; font-size: 0.875rem;
+        }
+        .setup-card input[type="text"] {
+            width: 100%; border-radius: 0.375rem; border: 1px solid var(--input-border);
+            padding: 0.5rem 0.75rem; font-family: inherit;
+        }
+        .setup-card input[type="text"]:focus {
+            border-color: var(--x-color);
+            box-shadow: 0 0 0 2px rgba(0,123,255,0.2);
+            outline: none;
+        }
+        .radio-group label {
+            display: inline-flex; align-items: center;
+            margin-right: 1rem; font-size: 0.875rem;
+            cursor: pointer;
+        }
+        .radio-group input {
+            margin-right: 0.25rem;
+            accent-color: var(--x-color);
+        }
+        
+        /* New style for the individual question setup blocks */
+        .question-setup-block {
+            border: 1px solid var(--input-border);
+            border-radius: 0.5rem;
+            padding: 1rem;
+            margin-top: 1rem;
+            background-color: #fdfdfd;
+        }
+
+        @keyframes place-marker {
+            from { opacity: 0; transform: scale(0.5) rotate(-90deg); }
+            to { opacity: 1; transform: scale(1) rotate(0deg); }
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+
+    <!-- 
+      SECTION 1: SETUP CONTAINER
+    -->
+    <div id="setup-container" class="w-full max-w-5xl mx-auto">
+        <div class="text-center mb-8">
+            <h1 class="text-4xl md:text-5xl font-orbitron font-bold title-text tracking-widest">GAME SETUP</h1>
+            <p class="text-lg text-gray-600 mt-2">Create your custom review game. Add one or more questions to each of the 9 cells.</p>
+        </div>
+
+        <form id="game-setup-form">
+            <!-- New Global Settings Card -->
+            <div class="setup-card mb-8">
+                <h2 class="text-xl">1. Global Settings</h2>
+                <div class="mt-4">
+                    <label for="game-title-input" class="font-bold block mb-1">Game Title:</label>
+                    <input type="text" id="game-title-input" value="QUIZ-TAC-TOE">
+                </div>
+            </div>
+
+            <div class="setup-card mb-8">
+                <h2 class="text-xl">2. Enter Questions (9 Cells)</h2>
+                <p class="mb-6 text-gray-700">For each cell, click "Add Question" to add as many questions as you like. Students must answer ALL questions in a cell to win it.</p>
+                
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6" id="questions-grid">
+                    <!-- This block will be repeated 9 times by JS -->
+                </div>
+            </div>
+
+            <!-- Start Button -->
+            <div class="text-center my-8">
+                <button type="submit" class="btn btn-primary btn-lg text-2xl font-bold py-4 px-12">
+                    Start Game!
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- 
+      SECTION 2: GAME CONTAINER
+    -->
+    <div id="game-container" class="hidden w-full max-w-2xl mx-auto flex flex-col items-center space-y-4">
+        <h1 id="game-title-display" class="text-4xl md:text-5xl font-orbitron font-bold title-text tracking-widest text-center">QUIZ-TAC-TOE</h1>
+        
+        <div class="grid grid-cols-2 gap-4 md:gap-8 w-full max-w-md">
+            <div id="player-x-score-box" class="score-box text-center transition-all duration-300">
+                <p class="text-lg font-semibold">TEAM X</p>
+                <p id="score-x" class="text-4xl font-bold font-orbitron">0</p>
+            </div>
+            <div id="player-o-score-box" class="score-box text-center transition-all duration-300">
+                <p class="text-lg font-semibold">TEAM O</p>
+                <p id="score-o" class="text-4xl font-bold font-orbitron">0</p>
+            </div>
+        </div>
+
+        <div id="status" class="text-2xl font-semibold h-8 status-text text-center"></div>
+
+        <div class="relative">
+            <div class="game-board" id="game-board">
+                <!-- 3x3 Cells will be generated by JavaScript -->
+            </div>
+        </div>
+        
+        <div class="flex flex-col sm:flex-row items-center space-y-2 sm:space-y-0 sm:space-x-4">
+            <button id="reset-board-btn" class="btn btn-primary">Next Round</button>
+            <button id="back-to-setup-btn" class="btn btn-secondary">New Game (Back to Setup)</button>
+        </div>
+    </div>
+
+    <!-- 
+      SECTION 3: QUESTION MODAL
+    -->
+    <div id="question-modal" class="modal-overlay">
+        <div class="modal-content">
+            <h3 id="modal-question-number" class="text-lg font-semibold text-gray-600 text-center mb-2">Question 1 of 3</h3>
+            <h2 id="modal-question-text" class="text-2xl font-bold mb-6 text-center">Question text goes here...</h2>
+            
+            <!-- Multiple Choice Options -->
+            <div id="modal-mc-options" class="space-y-3">
+                <!-- e.g., <button class="answer-option" data-index="0">Option A</button> -->
+            </div>
+            
+            <!-- Open Answer Input -->
+            <div id="modal-open-answer-container" class="hidden space-y-4">
+                <label for="modal-answer-input" class="font-semibold">Type your answer:</label>
+                <input type="text" id="modal-answer-input">
+                <button id="modal-submit-open-answer" class="btn btn-primary w-full">Submit Answer</button>
+            </div>
+            
+            <!-- Feedback text -->
+            <div id="modal-feedback"></div>
+        </div>
+    </div>
+
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+
+            // --- STATE VARIABLES ---
+            let board = Array(9).fill(null);
+            let currentPlayer = 'X';
+            let gameActive = true;
+            let scores = { X: 0, O: 0 };
+            let currentClickedCell = null;
+            let currentQuestionIndex = 0; // New: Tracks question *within* a cell
+            let gameData = { cells: [] };
+            let winningCombinations = [
+                [0, 1, 2], [3, 4, 5], [6, 7, 8], [0, 3, 6], [1, 4, 7], [2, 5, 8], [0, 4, 8], [2, 4, 6]
+            ];
+
+            // --- SVG CONSTANTS ---
+            const xSVG = `<svg viewBox="0 0 52 52"><line x1="1" y1="51" x2="51" y2="1" stroke="var(--x-color)" stroke-width="6" stroke-linecap="round"/><line x1="1" y1="1" x2="51" y2="51" stroke="var(--x-color)" stroke-width="6" stroke-linecap="round"/></svg>`;
+            const oSVG = `<svg viewBox="0 0 52 52"><circle cx="26" cy="26" r="23" stroke="var(--o-color)" stroke-width="6" fill="none"/></svg>`;
+            
+            // --- DOM ELEMENT SELECTORS ---
+            const setupContainer = document.getElementById('setup-container');
+            const gameContainer = document.getElementById('game-container');
+            const setupForm = document.getElementById('game-setup-form');
+            const questionsGrid = document.getElementById('questions-grid');
+            
+            const boardElement = document.getElementById('game-board');
+            const statusElement = document.getElementById('status');
+            const scoreXElement = document.getElementById('score-x');
+            const scoreOElement = document.getElementById('score-o');
+            const playerXBox = document.getElementById('player-x-score-box');
+            const playerOBox = document.getElementById('player-o-score-box');
+
+            const modal = document.getElementById('question-modal');
+            const modalQuestionNumber = document.getElementById('modal-question-number');
+            const modalQuestionText = document.getElementById('modal-question-text');
+            const modalMcOptionsContainer = document.getElementById('modal-mc-options');
+            const modalOpenAnswerContainer = document.getElementById('modal-open-answer-container');
+            const modalAnswerInput = document.getElementById('modal-answer-input');
+            const modalSubmitOpenAnswerBtn = document.getElementById('modal-submit-open-answer');
+            const modalFeedback = document.getElementById('modal-feedback');
+            
+            const resetBoardBtn = document.getElementById('reset-board-btn');
+            const backToSetupBtn = document.getElementById('back-to-setup-btn');
+
+            // --- SETUP FORM LOGIC ---
+
+            /**
+             * Generates the HTML for a single question's setup fields
+             */
+            function createQuestionFields(cellIndex, questionIndex) {
+                const i = cellIndex + 1;
+                const q = questionIndex;
+                const fieldGroup = document.createElement('div');
+                fieldGroup.className = 'question-setup-block relative';
+                
+                fieldGroup.innerHTML = `
+                    <h4 class="font-bold text-gray-700">Question ${q + 1}</h4>
+                    <button type="button" class="btn btn-danger btn-sm absolute top-2 right-2 remove-question-btn">&times;</button>
+                    <div class="pt-2">
+                        <label class="font-bold">Question Type:</label>
+                        <div class="radio-group flex">
+                            <label><input type="radio" name="cell-${i}-q-${q}-type" value="mc" checked> Multiple Choice</label>
+                            <label><input type="radio" name="cell-${i}-q-${q}-type" value="open"> Open Answer</label>
+                        </div>
+                    </div>
+                    <div>
+                        <label for="cell-${i}-q-${q}-question">Question:</label>
+                        <input type="text" id="cell-${i}-q-${q}-question">
+                    </div>
+                    <div class="mc-fields space-y-3 mt-2">
+                        <div><label for="cell-${i}-q-${q}-optA">Option A:</label><input type="text" id="cell-${i}-q-${q}-optA"></div>
+                        <div><label for="cell-${i}-q-${q}-optB">Option B:</label><input type="text" id="cell-${i}-q-${q}-optB"></div>
+                        <div><label for="cell-${i}-q-${q}-optC">Option C:</label><input type="text" id="cell-${i}-q-${q}-optC"></div>
+                        <div><label for="cell-${i}-q-${q}-optD">Option D:</label><input type="text" id="cell-${i}-q-${q}-optD"></div>
+                        <div class="pt-2">
+                            <label class="font-bold">Correct Answer (MC):</label>
+                            <div class="radio-group flex justify-around">
+                                <label><input type="radio" name="cell-${i}-q-${q}-correct" value="0" checked> A</label>
+                                <label><input type="radio" name="cell-${i}-q-${q}-correct" value="1"> B</label>
+                                <label><input type="radio" name="cell-${i}-q-${q}-correct" value="2"> C</label>
+                                <label><input type="radio" name="cell-${i}-q-${q}-correct" value="3"> D</label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="open-fields hidden space-y-3 mt-2">
+                        <div>
+                            <label for="cell-${i}-q-${q}-open-answer">Correct Answer (Open):</label>
+                            <input type="text" id="cell-${i}-q-${q}-open-answer" placeholder="Type the exact answer">
+                        </div>
+                    </div>
+                `;
+                return fieldGroup;
+            }
+
+            /**
+             * Generates the HTML for a single cell setup card
+             */
+            function createCellCard(index) {
+                const i = index + 1;
+                const card = document.createElement('div');
+                card.className = 'setup-card p-4';
+                card.id = `cell-card-${i}`;
+                
+                card.innerHTML = `
+                    <h3>Cell ${i}</h3>
+                    <div id="cell-${i}-questions-container">
+                        <!-- Questions will be added here -->
+                    </div>
+                    <button type="button" class="btn btn-secondary btn-sm mt-4 add-question-btn" data-cell-index="${index}">
+                        + Add Question
+                    </button>
+                `;
+                return card;
+            }
+
+            /**
+             * Initialize all 9 setup cards
+             */
+            function initializeSetupForm() {
+                questionsGrid.innerHTML = '';
+                for (let i = 0; i < 9; i++) {
+                    const card = createCellCard(i);
+                    questionsGrid.appendChild(card);
+                }
+            }
+            
+            // Listen for changes and clicks on the setup form
+            setupForm.addEventListener('click', (e) => {
+                // 1. Add Question Button
+                if (e.target.classList.contains('add-question-btn')) {
+                    const cellIndex = parseInt(e.target.dataset.cellIndex, 10);
+                    const container = document.getElementById(`cell-${cellIndex + 1}-questions-container`);
+                    const questionIndex = container.children.length; // 0-based index
+                    const questionFields = createQuestionFields(cellIndex, questionIndex);
+                    container.appendChild(questionFields);
+                }
+                
+                // 2. Remove Question Button
+                if (e.target.classList.contains('remove-question-btn')) {
+                    const block = e.target.closest('.question-setup-block');
+                    block.remove();
+                    // Note: This doesn't re-index question numbers, but that's okay for submission
+                }
+            });
+            
+            setupForm.addEventListener('change', (e) => {
+                // 3. Check for Question Type change
+                if (e.target.name.endsWith('-q-type')) {
+                    const card = e.target.closest('.question-setup-block');
+                    const showMC = e.target.value === 'mc';
+                    card.querySelector('.mc-fields').classList.toggle('hidden', !showMC);
+                    card.querySelector('.open-fields').classList.toggle('hidden', showMC);
+                }
+            });
+
+            // Handle Form Submission
+            setupForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                
+                gameData.title = document.getElementById('game-title-input').value;
+                gameData.cells = [];
+                for (let i = 1; i <= 9; i++) {
+                    const cellData = { questions: [] };
+                    const container = document.getElementById(`cell-${i}-questions-container`);
+                    const questionBlocks = container.querySelectorAll('.question-setup-block');
+                    
+                    questionBlocks.forEach((block, qIndex) => {
+                        const qType = block.querySelector(`input[name^="cell-${i}-q-"]:checked`).value;
+                        const question = block.querySelector(`input[id^="cell-${i}-q-"][id$="-question"]`).value;
+                        
+                        if (qType === 'mc') {
+                            const options = [
+                                block.querySelector(`input[id$="-optA"]`).value,
+                                block.querySelector(`input[id$="-optB"]`).value,
+                                block.querySelector(`input[id$="-optC"]`).value,
+                                block.querySelector(`input[id$="-optD"]`).value
+                            ];
+                            const correct = parseInt(block.querySelector(`input[name^="cell-${i}-q-"][name$="-correct"]:checked`).value, 10);
+                            cellData.questions.push({ type: 'mc', question, options, correct });
+                        } else { // 'open'
+                            const answer = block.querySelector(`input[id$="-open-answer"]`).value;
+                            cellData.questions.push({ type: 'open', question, answer });
+                        }
+                    });
+                    gameData.cells.push(cellData);
+                }
+                
+                setupContainer.classList.add('hidden');
+                gameContainer.classList.remove('hidden');
+                
+                document.getElementById('game-title-display').textContent = gameData.title;
+                
+                scores = { X: 0, O: 0 };
+                updateScore();
+                startNewRound();
+            });
+
+            // --- GAME LOGIC ---
+
+            function startNewRound() {
+                board = Array(9).fill(null);
+                gameActive = true;
+                currentPlayer = 'X';
+                boardElement.innerHTML = '';
+                boardElement.classList.remove('grid-4x4'); // Always 3x3
+                
+                for (let i = 0; i < 9; i++) {
+                    const cell = document.createElement('div');
+                    cell.classList.add('cell');
+                    cell.dataset.index = i;
+                    // Add question mark if there are questions
+                    if (gameData.cells[i] && gameData.cells[i].questions.length > 0) {
+                        cell.innerHTML = `<span class="font-orbitron text-4xl text-gray-300">?</span>`;
+                    }
+                    boardElement.appendChild(cell);
+                }
+                updateStatus();
+            }
+
+            function handleCellClick(e) {
+                const cell = e.target.closest('.cell');
+                if (!cell || !gameActive || cell.classList.contains('occupied')) {
+                    return;
+                }
+                
+                const index = parseInt(cell.dataset.index);
+                const cellData = gameData.cells[index];
+
+                if (!cellData || cellData.questions.length === 0) {
+                    // No questions, just capture the cell
+                    placeMarker(index);
+                } else {
+                    // Has questions, show the modal
+                    currentClickedCell = index;
+                    currentQuestionIndex = 0; // Start at the first question
+                    showQuestionModal();
+                }
+            }
+
+            function showQuestionModal() {
+                const cellData = gameData.cells[currentClickedCell];
+                const questionData = cellData.questions[currentQuestionIndex];
+                const totalQuestions = cellData.questions.length;
+                
+                modalQuestionNumber.textContent = `Question ${currentQuestionIndex + 1} of ${totalQuestions}`;
+                modalQuestionText.textContent = questionData.question;
+                modalFeedback.textContent = '';
+                modalFeedback.className = '';
+
+                if (questionData.type === 'mc') {
+                    // Show MC options
+                    modalMcOptionsContainer.innerHTML = '';
+                    modalMcOptionsContainer.classList.remove('hidden');
+                    modalOpenAnswerContainer.classList.add('hidden');
+                    
+                    questionData.options.forEach((option, i) => {
+                        const button = document.createElement('button');
+                        button.classList.add('answer-option');
+                        button.textContent = ` ${String.fromCharCode(65 + i)}: ${option}`;
+                        button.dataset.index = i;
+                        button.addEventListener('click', handleMcAnswerClick);
+                        modalMcOptionsContainer.appendChild(button);
+                    });
+                } else { // 'open'
+                    // Show Open Answer input
+                    modalMcOptionsContainer.classList.add('hidden');
+                    modalOpenAnswerContainer.classList.remove('hidden');
+                    modalAnswerInput.value = '';
+                }
+                
+                modal.classList.add('active');
+            }
+            
+            function handleMcAnswerClick(e) {
+                const selectedButton = e.target;
+                const selectedIndex = parseInt(selectedButton.dataset.index, 10);
+                const cellData = gameData.cells[currentClickedCell];
+                const questionData = cellData.questions[currentQuestionIndex];
+                const correctIndex = questionData.correct;
+
+                const allOptionButtons = modalMcOptionsContainer.querySelectorAll('.answer-option');
+                allOptionButtons.forEach(btn => btn.disabled = true);
+                
+                if (selectedIndex === correctIndex) {
+                    handleCorrectAnswer(selectedButton);
+                } else {
+                    handleIncorrectAnswer(selectedButton, allOptionButtons[correctIndex]);
+                }
+            }
+            
+            function handleOpenAnswerSubmit() {
+                const userAnswer = modalAnswerInput.value.trim();
+                const cellData = gameData.cells[currentClickedCell];
+                const questionData = cellData.questions[currentQuestionIndex];
+                const correctAnswer = questionData.answer.trim();
+
+                modalAnswerInput.disabled = true;
+                modalSubmitOpenAnswerBtn.disabled = true;
+                
+                // Case-insensitive comparison
+                if (userAnswer.toLowerCase() === correctAnswer.toLowerCase()) {
+                    handleCorrectAnswer(modalAnswerInput);
+                } else {
+                    handleIncorrectAnswer(modalAnswerInput, null, `Correct Answer: ${correctAnswer}`);
+                }
+            }
+
+            function handleCorrectAnswer(correctElement) {
+                if (correctElement) correctElement.classList.add('correct');
+                modalFeedback.textContent = 'Correct!';
+                modalFeedback.className = 'feedback-correct';
+                
+                const totalQuestions = gameData.cells[currentClickedCell].questions.length;
+                
+                setTimeout(() => {
+                    currentQuestionIndex++; // Move to next question
+                    if (currentQuestionIndex < totalQuestions) {
+                        // Load next question
+                        showQuestionModal();
+                    } else {
+                        // All questions for this cell are done!
+                        placeMarker(currentClickedCell);
+                        hideModal();
+                    }
+                }, 1200);
+            }
+            
+            function handleIncorrectAnswer(incorrectElement, correctElement = null, feedback = 'Incorrect. Turn lost.') {
+                if (incorrectElement) incorrectElement.classList.add('incorrect');
+                if (correctElement) correctElement.classList.add('correct'); // Show correct MC answer
+
+                modalFeedback.textContent = feedback;
+                modalFeedback.className = 'feedback-incorrect';
+                
+                setTimeout(() => {
+                    switchPlayer();
+                    updateStatus();
+                    hideModal();
+                }, 2000); // Longer delay to read correct answer
+            }
+
+            function hideModal() {
+                modal.classList.remove('active');
+                currentClickedCell = null;
+                currentQuestionIndex = 0; // Reset for next time
+                // Re-enable modal inputs
+                modalAnswerInput.disabled = false;
+                modalSubmitOpenAnswerBtn.disabled = false;
+            }
+
+            function placeMarker(index) {
+                if (board[index] || !gameActive) return;
+
+                board[index] = currentPlayer;
+                const cell = boardElement.children[index];
+                cell.innerHTML = currentPlayer === 'X' ? xSVG : oSVG;
+                cell.classList.add('occupied');
+                
+                if (checkWin()) {
+                    endGame(false);
+                } else if (board.every(cell => cell)) {
+                    endGame(true); // Draw
+                } else {
+                    switchPlayer();
+                    updateStatus();
+                }
+            }
+            
+            function checkWin() {
+                return winningCombinations.some(combination => 
+                    combination.every(index => board[index] === currentPlayer)
+                );
+            }
+
+            function endGame(isDraw) {
+                gameActive = false;
+                if (isDraw) {
+                    statusElement.textContent = "It's a Draw!";
+                } else {
+                    statusElement.textContent = `Team ${currentPlayer} Wins!`;
+                    scores[currentPlayer]++;
+                    updateScore();
+                    highlightWinner();
+                }
+            }
+
+            function switchPlayer() {
+                currentPlayer = currentPlayer === 'X' ? 'O' : 'X';
+            }
+            
+            function updateStatus() {
+                if (gameActive) {
+                    statusElement.textContent = `Team ${currentPlayer}'s Turn`;
+                    if (currentPlayer === 'X') {
+                        playerXBox.classList.add('player-x-active');
+                        playerOBox.classList.remove('player-o-active');
+                    } else {
+                        playerOBox.classList.add('player-o-active');
+                        playerXBox.classList.remove('player-x-active');
+                    }
+                }
+                playerXBox.classList.remove('player-x-win');
+                playerOBox.classList.remove('player-o-win');
+            }
+
+            function updateScore() {
+                scoreXElement.textContent = scores.X;
+                scoreOElement.textContent = scores.O;
+            }
+            
+            function highlightWinner() {
+                if(currentPlayer === 'X') playerXBox.classList.add('player-x-win');
+                else playerOBox.classList.add('player-o-win');
+            }
+
+            // --- BUTTON LISTENERS ---
+            resetBoardBtn.addEventListener('click', startNewRound);
+            backToSetupBtn.addEventListener('click', () => {
+                gameContainer.classList.add('hidden');
+                setupContainer.classList.remove('hidden');
+                // Form values are preserved
+            });
+            modalSubmitOpenAnswerBtn.addEventListener('click', handleOpenAnswerSubmit);
+            boardElement.addEventListener('click', handleCellClick);
+
+            // --- INITIALIZE ---
+            initializeSetupForm(); // Create the 9 setup cards on load
+        });
+    </script>
+
+</body>
+</html>
